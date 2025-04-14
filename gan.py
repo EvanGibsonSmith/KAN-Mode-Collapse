@@ -84,8 +84,8 @@ def train_gan(use_kan_gen=True, use_kan_disc=False):
 
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Lambda(lambda x: x.view(-1)),
-        transforms.Normalize((0.5,), (0.5,))
+        transforms.Normalize((0.5,), (0.5,)),
+        transforms.Lambda(lambda x: x.view(-1))
     ])
     dataset = datasets.MNIST(root="./data", train=True, transform=transform, download=True)
     loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
@@ -138,4 +138,4 @@ def train_gan(use_kan_gen=True, use_kan_disc=False):
 
 if __name__ == "__main__":
     # Set these to easily switch architecture:
-    train_gan(use_kan_gen=True, use_kan_disc=False)  # KAN Generator + MLP Discriminator
+    train_gan(use_kan_disc=True, use_kan_gen=True)  # KAN Generator + MLP Discriminator
