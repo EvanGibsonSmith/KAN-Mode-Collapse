@@ -1,22 +1,21 @@
 import torch
 from gan import KANGenerator, MLPGenerator, KANDiscriminator, MLPDiscriminator
 from fvcore.nn import FlopCountAnalysis
-from flop_hooks import kan_group_op_handle  # replace with actual file
-
 import matplotlib.pyplot as plt
+from torchvision.utils import make_grid
 
 # --- Generate MNIST-like Data from GAN ---
 def generate_mnist_data_from_gan():
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     NOISE_DIM = 100  # Latent space dimension for the GAN
     IMG_DIM = 28 * 28  # Flatten MNIST images (28x28 pixels)
-    BATCH_SIZE = 36  # How many images to generate for the collage
+    BATCH_SIZE = 16  # How many images to generate for the collage
     
     # --- Initialize Generator ---
     gen = MLPGenerator(noise_dim=NOISE_DIM, img_dim=IMG_DIM).to(DEVICE)
     
     # If you have a pre-trained model, load it here
-    gen.load_state_dict(torch.load('models/gans/d_mlp_g_mlp/generator_mlp.pth', map_location=DEVICE))
+    gen.load_state_dict(torch.load('models/d_mlp_g_mlp/generator_mlp.pth', map_location=DEVICE))
     
     # --- Generate noise and create fake images ---
     noise = torch.randn(BATCH_SIZE, NOISE_DIM).to(DEVICE)  # Generate random noise
@@ -26,7 +25,7 @@ def generate_mnist_data_from_gan():
     fake_images = fake_images.view(-1, 28, 28).cpu().detach().numpy()
 
     # --- Plot the generated images in a 4x4 grid ---
-    fig, axes = plt.subplots(6, 6, figsize=(8, 8))
+    fig, axes = plt.subplots(4, 4, figsize=(8, 8))
     fig.suptitle("GAN Generated MNIST-like Images", fontsize=16)
 
     for i, ax in enumerate(axes.flat):
@@ -39,6 +38,37 @@ def generate_mnist_data_from_gan():
     plt.tight_layout()
     plt.subplots_adjust(top=0.9)
     plt.savefig("generated_mnist_collage.png")  # Save the collage
+    plt.show()
+
+# --- Generate CIFAR-10 like data from GAN --- #
+def generate_cifar10_data_from_gan():
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    NOISE_DIM = 100
+    IMG_DIM = 3 * 32 * 32  # Flattened CIFAR-10 images
+    BATCH_SIZE = 16
+
+    # --- Initialize Generator ---
+    gen = KANGenerator(noise_dim=NOISE_DIM, img_dim=IMG_DIM).to(DEVICE)
+
+    # Load pre-trained weights
+    gen.load_state_dict(torch.load('models/CIFAR-10/d_mlp_g_kan/generator_kan.pth', map_location=DEVICE))
+    gen.eval()
+
+    # --- Generate fake images ---
+    noise = torch.randn(BATCH_SIZE, NOISE_DIM).to(DEVICE)
+    fake_images = gen(noise).view(-1, 3, 32, 32).cpu().detach()
+
+    # Denormalize: GAN trained on [-1, 1], so rescale to [0, 1]
+    fake_images = (fake_images + 1) / 2
+
+    # --- Plot the images in a grid ---
+    grid_img = make_grid(fake_images, nrow=4, padding=2)
+    plt.figure(figsize=(8, 8))
+    plt.imshow(grid_img.permute(1, 2, 0))  # Convert from CHW to HWC
+    plt.axis('off')
+    plt.title("GAN Generated CIFAR-10-like Images")
+    plt.tight_layout()
+    plt.savefig("generated_cifar10_collage.png")
     plt.show()
 
 def print_flops():
@@ -62,36 +92,13 @@ def print_flops():
     mlp_disc_flops = FlopCountAnalysis(mlp_disc, img)
 
     # Print results (MACs = FLOPs / 2)
-
-    # Run FLOP analysis (MACs = FLOPs / 2 for linear layers)
-    kan_gen_flops = FlopCountAnalysis(kan_gen, z)
-    kan_gen_flops.set_op_handle("KAT_Group", kan_group_op_handle)
-
-    mlp_gen_flops = FlopCountAnalysis(mlp_gen, z)
-
-    kan_disc_flops = FlopCountAnalysis(kan_disc, img)
-    kan_gen_flops.set_op_handle("KAT_Group", kan_group_op_handle)
-    
-    mlp_disc_flops = FlopCountAnalysis(mlp_disc, img)
-    
-    # Print parameter counts
-    print(f"KAN Generator Params: {count_params(kan_gen):,}")
-    print(f"MLP Generator Params: {count_params(mlp_gen):,}")
-    print(f"KAN Discriminator Params: {count_params(kan_disc):,}")
-    print(f"MLP Discriminator Params: {count_params(mlp_disc):,}")
-
-    # Print flop counts NOTE: Not working yet due to triton issues
-    #print(f"KAN Generator MACs: {kan_gen_flops.total()}")
-    #print(f"MLP Generator MACs: {mlp_gen_flops.total()}")
-    #print(f"KAN Discriminator MACs: {kan_disc_flops.total()}")
-    #print(f"MLP Discriminator MACs: {mlp_disc_flops.total()}")
-
-
-def count_params(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"KAN Generator MACs: {kan_gen_flops.total() / 2:.0f}")
+    print(f"MLP Generator MACs: {mlp_gen_flops.total() / 2:.0f}")
+    print(f"KAN Discriminator MACs: {kan_disc_flops.total() / 2:.0f}")
+    print(f"MLP Discriminator MACs: {mlp_disc_flops.total() / 2:.0f}")
 
 if __name__ == "__main__":
     print("Starting Script")
     # MACs
-    #print_flops()
-    generate_mnist_data_from_gan()
+    #print_flops() TODO add parameters to this to make it more flexible
+    generate_cifar10_data_from_gan()
