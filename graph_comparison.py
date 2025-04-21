@@ -1,17 +1,16 @@
-import torch
 import numpy as np
 import pandas as pd
 import os
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from kat_rational import KAT_Group
+import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
-
+from kat_rational import KAT_Group
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 import matplotlib.pyplot as plt
-
 
 class MLPDiscriminator(nn.Module):
     def __init__(self, img_dim, hidden_dim, num_layers):
@@ -23,12 +22,12 @@ class MLPDiscriminator(nn.Module):
             nn.Linear(img_dim, hidden_dim),
             nn.ReLU(),
             *[nn.Sequential(nn.Linear(hidden_dim, hidden_dim), nn.ReLU()) for _ in range(num_layers)],
-            nn.Linear(hidden_dim, 1),
+            nn.Linear(hidden_dim, 10),
             nn.Sigmoid()
         )
 
     def forward(self, x):
-        return self.net(x)
+        return torch.sigmoid(self.net(x))
 
 class KANDiscriminator(nn.Module):
     def __init__(self, img_dim, hidden_dim, num_layers):
@@ -37,14 +36,14 @@ class KANDiscriminator(nn.Module):
             nn.Linear(img_dim, hidden_dim),
             KAT_Group(mode="identity"),
             nn.Linear(hidden_dim, hidden_dim),
-            *[nn.Sequential(KAT_Group(mode="gelu"), nn.Linear(256, 256)) for _ in range(num_layers)], # The KAT_Group may have to have it's groups adjusted for parameter size changes? Not entirely sure how it's calculated but graph should be calibrated regardless
+            *[nn.Sequential(KAT_Group(mode="gelu"), nn.Linear(hidden_dim, hidden_dim)) for _ in range(num_layers)], # The KAT_Group may have to have it's groups adjusted for parameter size changes? Not entirely sure how it's calculated but graph should be calibrated regardless
             KAT_Group(mode="gelu"),
-            nn.Linear(hidden_dim, 1),
+            nn.Linear(hidden_dim, 10),
             nn.Sigmoid()
         )
 
     def forward(self, x):
-        return self.net(x)
+        return torch.sigmoid(self.net(x))
 
 # Train the model
 def train_model(model, criterion, optimizer, X_train, y_train, epochs=100):
@@ -66,8 +65,8 @@ def evaluate_model(model, X_test, y_test):
 
 # Main script
 def main():
-    input_size = 10
-    output_size = 1
+    input_size = 28*28
+    output_size = 10
     hidden_sizes = [10, 50, 100, 200, 500]  # Increasing parameter sizes
     layers = [1, 2, 3, 4, 5]  # Number of layers to test
     results_file = "results.csv"
@@ -82,13 +81,11 @@ def main():
                 raise ValueError(f"Missing column in results file: {col}")
     else:
         results = pd.DataFrame(columns=["Model", "Hidden_Size", "Num_Layers", "Total_Params", "BCE"])
-
     # Load dataset
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     BATCH_SIZE = 64
     EPOCHS = 100
     LEARNING_RATE = 2e-4
-    NOISE_DIM = 100
     IMG_DIM = 28 * 28
 
     transform = transforms.Compose([
@@ -96,37 +93,48 @@ def main():
         transforms.Normalize((0.5,), (0.5,)),
         transforms.Lambda(lambda x: x.view(-1))
     ])
-    dataset = datasets.MNIST(root="./data", train=True, transform=transform, download=True)
-    loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+    dataset = datasets.MNIST(root="./data",transform=transform, train=True, download=True)
+    # Split dataset into train and test sets
+    train_size = int(0.8 * len(dataset))
+    test_size = len(dataset) - train_size
+    train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 
     for hidden_size in hidden_sizes:
         for num_layers in layers:
+            print(f"Testing Hidden Size: {hidden_size}, Num Layers: {num_layers}")
             for model_name, ModelClass in [("MLP", MLPDiscriminator), ("KAT", KANDiscriminator)]:
-                if not ((results["Model"] == model_name) & (results["Hidden_Size"] == hidden_size)).any():
-                    for data, _ in loader:
-                        # Prepare data
-                        data, labels = data.to(DEVICE), _.to(DEVICE)
-                        X_train, y_train = data, labels.float().view(-1, 1)
-                        X_test, y_test = data, labels.float().view(-1, 1)
-
-                        model = ModelClass(input_size, hidden_size, num_layers).to(DEVICE)
+                if not ((results["Model"] == model_name) & (results["Hidden_Size"] == hidden_size) & (results["Num_Layers"] == num_layers)).any():
+                    for batch_idx, (X_train, y_train) in enumerate(tqdm(train_loader, desc=f"Training {model_name} | Hidden Size: {hidden_size} | Layers: {num_layers}")):
                         
-                        criterion = nn.BCELoss()
+                        X_train = X_train.view(-1, IMG_DIM).to(DEVICE)
+                        y_train = torch.nn.functional.one_hot(y_train, num_classes=10).float().to(DEVICE)
+                        model = ModelClass(input_size, hidden_size, num_layers).to(DEVICE)
+                        criterion = nn.BCEWithLogitsLoss()
                         optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
 
                         train_model(model, criterion, optimizer, X_train, y_train, epochs=EPOCHS)
-                        bce = evaluate_model(model, X_test, y_test)
-
-                        # Save results
-                        results = results.append({
-                            "Model": model_name,
-                            "Hidden_Size": hidden_size,
-                            "Num_Layers": num_layers,
-                            "Total_Params": hidden_size * num_layers,
-                            "BCE": bce
-                        }, ignore_index=True)
-                        results.to_csv(results_file, index=False)
-
+                    # Evaluate the model
+                    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+                    X_test, y_test = next(iter(test_loader))
+                    y_test = torch.nn.functional.one_hot(y_test, num_classes=10).float()
+                    bce = evaluate_model(model, X_test.to(DEVICE), y_test.to(DEVICE))
+                    # Save the model
+                    model_dir = "models"
+                    os.makedirs(model_dir, exist_ok=True)
+                    model_path = os.path.join(model_dir, f"{model_name}_hidden{hidden_size}_layers{num_layers}.pth")
+                    torch.save(model.state_dict(), model_path)
+                    # Save results
+                    new_row = pd.DataFrame([{
+                        "Model": model_name,
+                        "Hidden_Size": hidden_size,
+                        "Num_Layers": num_layers,
+                        "Total_Params": hidden_size * num_layers,
+                        "BCE": bce
+                    }])
+                    results = pd.concat([results, new_row], ignore_index=True)
+                    results.to_csv(results_file, index=False)
+                    print(f"Model: {model_name}, Hidden Size: {hidden_size}, Num Layers: {num_layers}, BCE: {bce}")
     # Plot results
     plt.figure()
     for model_name in results["Model"].unique():
