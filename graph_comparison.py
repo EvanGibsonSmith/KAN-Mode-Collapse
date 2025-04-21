@@ -27,7 +27,7 @@ class MLPDiscriminator(nn.Module):
         )
 
     def forward(self, x):
-        return torch.sigmoid(self.net(x))
+        return self.net(x)
 
 class KANDiscriminator(nn.Module):
     def __init__(self, img_dim, hidden_dim, num_layers):
@@ -43,7 +43,7 @@ class KANDiscriminator(nn.Module):
         )
 
     def forward(self, x):
-        return torch.sigmoid(self.net(x))
+        return self.net(x)
 
 # Train the model
 def train_model(model, criterion, optimizer, X_train, y_train, epochs=100):
@@ -60,8 +60,11 @@ def evaluate_model(model, X_test, y_test):
     model.eval()
     with torch.no_grad():
         outputs = model(X_test)
-        mse = nn.MSELoss()(outputs, y_test).item()
-    return mse
+        predictions = torch.argmax(outputs, dim=1)
+        correct = (predictions == torch.argmax(y_test, dim=1)).sum().item()
+        total = y_test.size(0)
+        accuracy = correct / total
+    return accuracy
 
 # Main script
 def main():
@@ -74,13 +77,13 @@ def main():
     # Check if results file exists
     if os.path.exists(results_file):
         results = pd.read_csv(results_file)
-        expected_columns = ["Model", "Hidden_Size", "Num_Layers", "Total_Params", "BCE"]
+        expected_columns = ["Model", "Hidden_Size", "Num_Layers", "Total_Params", "Accuracy"]
         for col in expected_columns:
             if col not in results.columns:
                 results[col] = None
                 raise ValueError(f"Missing column in results file: {col}")
     else:
-        results = pd.DataFrame(columns=["Model", "Hidden_Size", "Num_Layers", "Total_Params", "BCE"])
+        results = pd.DataFrame(columns=["Model", "Hidden_Size", "Num_Layers", "Total_Params", "Accuracy"])
     # Load dataset
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     BATCH_SIZE = 64
@@ -110,7 +113,7 @@ def main():
                         X_train = X_train.view(-1, IMG_DIM).to(DEVICE)
                         y_train = torch.nn.functional.one_hot(y_train, num_classes=10).float().to(DEVICE)
                         model = ModelClass(input_size, hidden_size, num_layers).to(DEVICE)
-                        criterion = nn.BCEWithLogitsLoss()
+                        criterion = nn.CrossEntropyLoss()
                         optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
 
                         train_model(model, criterion, optimizer, X_train, y_train, epochs=EPOCHS)
@@ -118,7 +121,7 @@ def main():
                     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
                     X_test, y_test = next(iter(test_loader))
                     y_test = torch.nn.functional.one_hot(y_test, num_classes=10).float()
-                    bce = evaluate_model(model, X_test.to(DEVICE), y_test.to(DEVICE))
+                    accuracy = evaluate_model(model, X_test.to(DEVICE), y_test.to(DEVICE))
                     # Save the model
                     model_dir = "models"
                     os.makedirs(model_dir, exist_ok=True)
@@ -130,18 +133,18 @@ def main():
                         "Hidden_Size": hidden_size,
                         "Num_Layers": num_layers,
                         "Total_Params": hidden_size * num_layers,
-                        "BCE": bce
+                        "Accuracy": accuracy
                     }])
                     results = pd.concat([results, new_row], ignore_index=True)
                     results.to_csv(results_file, index=False)
-                    print(f"Model: {model_name}, Hidden Size: {hidden_size}, Num Layers: {num_layers}, BCE: {bce}")
+                    print(f"Model: {model_name}, Hidden Size: {hidden_size}, Num Layers: {num_layers}, Accuracy: {accuracy}")
     # Plot results
     plt.figure()
     for model_name in results["Model"].unique():
         model_results = results[results["Model"] == model_name]
-        plt.plot(model_results["Total_Params"], model_results["MSE"], label=model_name)
+        plt.plot(model_results["Total_Params"], model_results["Accuracy"], label=model_name)
     plt.xlabel("Total Parameters")
-    plt.ylabel("Mean Squared Error")
+    plt.ylabel("Accuracy")
     plt.title("Accuracy vs Parameters")
     plt.legend()
     plt.show()

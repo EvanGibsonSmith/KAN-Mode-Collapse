@@ -1,4 +1,2 @@
-Model,Hidden_Size,Num_Layers,Total_Params,BCE
-MLP,10,1,10,0.2168357819318771
-KAT,10,1,10,0.2346035689115524
-MLP,10,2,20,0.18028105795383453
+Model,Hidden_Size,Num_Layers,Total_Params,Accuracy
+
