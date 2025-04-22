@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 from kat_rational import KAT_Group
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import seaborn as sns
 import matplotlib.pyplot as plt
 
 class MLPDiscriminator(nn.Module):
@@ -48,12 +49,11 @@ class KANDiscriminator(nn.Module):
 # Train the model
 def train_model(model, criterion, optimizer, X_train, y_train, epochs=100):
     model.train()
-    for epoch in range(epochs):
-        optimizer.zero_grad()
-        outputs = model(X_train)
-        loss = criterion(outputs, y_train)
-        loss.backward()
-        optimizer.step()
+    optimizer.zero_grad()
+    outputs = model(X_train)
+    loss = criterion(outputs, y_train)
+    loss.backward()
+    optimizer.step()
 
 # Evaluate the model
 def evaluate_model(model, X_test, y_test):
@@ -108,15 +108,17 @@ def main():
             print(f"Testing Hidden Size: {hidden_size}, Num Layers: {num_layers}")
             for model_name, ModelClass in [("MLP", MLPDiscriminator), ("KAT", KANDiscriminator)]:
                 if not ((results["Model"] == model_name) & (results["Hidden_Size"] == hidden_size) & (results["Num_Layers"] == num_layers)).any():
-                    for batch_idx, (X_train, y_train) in enumerate(tqdm(train_loader, desc=f"Training {model_name} | Hidden Size: {hidden_size} | Layers: {num_layers}")):
-                        
-                        X_train = X_train.view(-1, IMG_DIM).to(DEVICE)
-                        y_train = torch.nn.functional.one_hot(y_train, num_classes=10).float().to(DEVICE)
-                        model = ModelClass(input_size, hidden_size, num_layers).to(DEVICE)
-                        criterion = nn.CrossEntropyLoss()
-                        optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
+                    model = ModelClass(input_size, hidden_size, num_layers).to(DEVICE)
+                    criterion = nn.CrossEntropyLoss()
+                    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, betas=(0.5, 0.999))
 
-                        train_model(model, criterion, optimizer, X_train, y_train, epochs=EPOCHS)
+                    for epoch in tqdm(range(EPOCHS), desc=f"Training {model_name} | Hidden Size: {hidden_size} | Layers: {num_layers}"):
+                        for batch_idx, (X_train, y_train) in enumerate(train_loader):
+                            # Prepare data
+                            X_train = X_train.view(-1, IMG_DIM).to(DEVICE)
+                            y_train = torch.nn.functional.one_hot(y_train, num_classes=10).float().to(DEVICE)
+                            # Train the model
+                            train_model(model, criterion, optimizer, X_train, y_train)
                     # Evaluate the model
                     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
                     X_test, y_test = next(iter(test_loader))
@@ -142,12 +144,24 @@ def main():
     plt.figure()
     for model_name in results["Model"].unique():
         model_results = results[results["Model"] == model_name]
+        model_results = model_results.sort_values(by="Total_Params")
         plt.plot(model_results["Total_Params"], model_results["Accuracy"], label=model_name)
     plt.xlabel("Total Parameters")
     plt.ylabel("Accuracy")
     plt.title("Accuracy vs Parameters")
     plt.legend()
     plt.show()
+    # Generate heatmaps for accuracy
+
+    for model_name in results["Model"].unique():
+        model_results = results[results["Model"] == model_name]
+        heatmap_data = model_results.pivot(index="Hidden_Size", columns="Num_Layers", values="Accuracy")
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(heatmap_data, annot=True, fmt=".2f", cmap="viridis", cbar_kws={'label': 'Accuracy'})
+        plt.title(f"Accuracy Heatmap for {model_name}")
+        plt.xlabel("Number of Layers")
+        plt.ylabel("Hidden Size")
+        plt.show()
 
 if __name__ == "__main__":
     main()
