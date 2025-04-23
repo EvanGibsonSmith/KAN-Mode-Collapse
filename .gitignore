@@ -1,0 +1,16 @@
+__pycache__
+.venv
+
+*/__pycache__
+*/.venv
+
+# Data folder generated from scripts
+/data
+/models/*
+*.pth
+
+# Outputs
+gan_generator/outputs/*
+
+# Comment out MNIST model trained
+/mnist_classifier/mnist_cnn.pt
