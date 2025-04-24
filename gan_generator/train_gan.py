@@ -8,9 +8,16 @@ import pandas as pd
 import torch.nn.functional as F
 from test_gan_models import TestGenerator, TestDiscriminator
 from mlp_models import MLPGenerator, MLPDiscriminator
+from kat_models import GRKANDiscriminator, GRKANGenerator
 from tqdm import tqdm
 import os
 from metrics import batch_metrics
+from gan_generator.gan_visualizations import plot_training_stats, generate_collage
+
+# Fixes annoying import issues
+import sys; sys.path.insert(0, "/root/projects/kan-mode-collapse")
+
+import mnist_classifier.mnist_model as mnist_model
 
 # --- Function to Calculate Entropy of Confidence Histogram ---
 def entropy_of_confidence_histogram(pred_classes, confidences, num_classes=10):
@@ -30,6 +37,7 @@ def entropy_of_confidence_histogram(pred_classes, confidences, num_classes=10):
 # --- Training Function ---
 def train_gan(Generator,
             Discriminator,
+            Classifier,
             loader,
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
             epochs = 50,
@@ -37,7 +45,8 @@ def train_gan(Generator,
             noise_dim = 100,
             img_dim = 3 * 32 * 32,
             validation_size = 100,
-            save_dir='./training_output'):
+            save_dir='./training_output',
+            generate_graphs=True):
 
     if os.path.exists(save_dir):
         print("Save Directory Already Exists.")
@@ -55,9 +64,9 @@ def train_gan(Generator,
     opt_disc = optim.Adam(disc.parameters(), lr=learning_rate, betas=(0.5, 0.999))
 
     # Initialize pandas DataFrame to track stats
-    columns = ['Epoch', 'G Loss', 'D Loss', 'Entropy', 'Confidence']
+    columns = ['Epoch', 'G Loss', 'D Loss', 'Entropy', 'Confidence', 'Predicted Classes']
     stats_df = pd.DataFrame(columns=columns)
-
+        
     # --- Training loop ---
     for epoch in tqdm(range(epochs)):
         for batch_idx, (real, _) in enumerate(loader):
@@ -95,11 +104,10 @@ def train_gan(Generator,
             # Use a pretrained classifier (e.g., ResNet for CIFAR10)
             # Run the fake images through the classifier
             additional_noise = torch.randn(validation_size, noise_dim).to(device)  # Generate more fake images
-            fake_images = gen(additional_noise)
+            fake_images = gen.forward_reshape(additional_noise)
 
             # Calculate entropy and confidence for the generated images
-            fake_images_reshaped = fake_images.view(-1, 1, 28, 28)  # Assuming images are 32x32 and 3 channels (modify as needed)
-            confidence_hist_entropy, confidences, predicted_classes = batch_metrics(fake_images_reshaped, device)
+            confidence_hist_entropy, confidences, predicted_classes = batch_metrics(fake_images, Classifier, device)
 
             # Save stats to DataFrame
             stats_df.loc[len(stats_df)] = {
@@ -108,7 +116,7 @@ def train_gan(Generator,
                 'D Loss': loss_disc.item(),
                 'Entropy': confidence_hist_entropy.item(),
                 'Confidence': [float(x) for x in confidences.numpy()],
-                'Predicted Classes': predicted_classes,
+                'Predicted Classes': [int(x) for x in predicted_classes.numpy()],
             }
 
         # Save model checkpoints and stats at the end of each epoch
@@ -118,8 +126,12 @@ def train_gan(Generator,
     # Save stats DataFrame to CSV
     stats_df.to_csv(f"{save_dir}/training_stats.csv", index=False)
 
+    if generate_graphs:
+        plot_training_stats(stats_df, save_folder=save_dir)
+
 if __name__=="__main__":
     batch_size = 64
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     transform = transforms.Compose([
         transforms.ToTensor(),
@@ -128,6 +140,9 @@ if __name__=="__main__":
     ])
     dataset = datasets.CIFAR10(root="./data", train=True, transform=transform, download=True)
     cifar_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+    cifar10_classifier_model = torch.hub.load('chenyaofo/pytorch-cifar-models', 'cifar10_resnet32', pretrained=True).to(device)
+    cifar10_classifier_model.eval()
 
     transform = transforms.Compose([
         transforms.ToTensor(),  
@@ -138,6 +153,10 @@ if __name__=="__main__":
     dataset = datasets.MNIST(root="./data", train=True, transform=transform, download=True)
     mnist_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-    train_gan(MLPGenerator, MLPDiscriminator, img_dim=28*28, loader=mnist_loader, save_dir='./gan_generator/gan_output', epochs=50)
+    mnist_classifier_model = mnist_model.MNIST_Classifier().to(device)
+    mnist_classifier_model.load_state_dict(torch.load("mnist_classifier/mnist_cnn.pt", map_location=device))
+    mnist_classifier_model.eval()
 
-    
+    train_gan(MLPGenerator, MLPDiscriminator, cifar10_classifier_model,
+              img_dim=(3, 32, 32), loader=cifar_loader, save_dir='./gan_generator/outputs/mlp_gan_cifar10_output', epochs=100)
+
