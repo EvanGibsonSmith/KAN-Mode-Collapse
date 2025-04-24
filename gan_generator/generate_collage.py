@@ -15,6 +15,7 @@ def generate_collage(classifier,
                     generator,
                     noise_dim,
                     save_folder,
+                    save_name="generated_and_classified_collage.png",
                     device=None,
                     class_dict=[0,1,2,3,4,5,6,7,8,9],
                     batch_size=16):
@@ -32,7 +33,7 @@ def generate_collage(classifier,
         batch_size (int): number of samples to generate
     """
     # Setup
-    if os.path.exists(os.path.join(save_folder, "generated_and_classified_collage.png")):
+    if os.path.exists(os.path.join(save_folder, save_name)):
         print("Path already exists.")
         return
     
@@ -73,7 +74,7 @@ def generate_collage(classifier,
 
     plt.tight_layout()
     plt.subplots_adjust(top=0.9)
-    plt.savefig(os.path.join(save_folder, "generated_and_classified_collage.png"))  # Save the collage
+    plt.savefig(os.path.join(save_folder, save_name))  # Save the collage
     plt.show()
 
 if __name__ == "__main__":
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     noise_dim = 100
     img_dim = (3, 32, 32)
     generator_model = MLPGenerator(noise_dim, img_dim).to(device)
-    generator_model.load_state_dict(torch.load("gan_generator/outputs/mlp_gan_cifar10_output/models/generator/generator_epoch_100.pth", map_location=device))
+    generator_model.load_state_dict(torch.load("gan_generator/outputs/mlp_gan_cifar10_output/models/generator/generator_epoch_5.pth", map_location=device))
     generator_model.eval()
 
     cifar10_class_dict = [
@@ -110,5 +111,6 @@ if __name__ == "__main__":
                      generator_model, 
                      noise_dim=100,
                      class_dict=cifar10_class_dict,
-                     save_folder="gan_generator/outputs/mlp_gan_cifar10_output")
+                     save_folder="gan_generator/outputs/conv_gan_cifar10_output",
+                     save_name="generated_and_classified_collage_epoch5_generator.png")
     

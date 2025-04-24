@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from helper_classes import ForwardReshape
+from helper_classes import FlatImageForwardReshape
 from functools import reduce
 from operator import mul
 
@@ -12,7 +12,7 @@ from kat_rational import KAT_Group
 
 
 # --- KAN Generator ---
-class GRKANGenerator(nn.Module, ForwardReshape):
+class GRKANGenerator(nn.Module, FlatImageForwardReshape):
     def __init__(self, noise_dim, img_dim):
         super().__init__()
         self.net = nn.Sequential(
@@ -29,7 +29,7 @@ class GRKANGenerator(nn.Module, ForwardReshape):
         return self.net(z)
 
 # --- KAN Discriminator ---
-class GRKANDiscriminator(nn.Module, ForwardReshape):
+class GRKANDiscriminator(nn.Module, FlatImageForwardReshape):
     def __init__(self, img_dim):
         super().__init__()
         self.fc1 = nn.Linear(reduce(mul, img_dim), 512)

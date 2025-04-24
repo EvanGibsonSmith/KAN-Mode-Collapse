@@ -6,9 +6,12 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch.nn.functional as F
+
+# Models
 from test_gan_models import TestGenerator, TestDiscriminator
 from mlp_models import MLPGenerator, MLPDiscriminator
 from kat_models import GRKANDiscriminator, GRKANGenerator
+from cnn_models import ConvCIFAR10_Generator, ConvCIFAR10_Discriminator, DCGAN_Discriminator, DCGAN_Generator
 from tqdm import tqdm
 import os
 from metrics import batch_metrics
@@ -56,8 +59,8 @@ def train_gan(Generator,
     os.makedirs(save_dir, exist_ok=True)  
 
     # --- Model selection ---
-    gen = Generator(noise_dim=noise_dim, img_dim=img_dim).to(device)
-    disc = Discriminator(img_dim=img_dim).to(device)
+    gen = Generator
+    disc = Discriminator
 
     criterion = nn.BCELoss()
     opt_gen = optim.Adam(gen.parameters(), lr=learning_rate, betas=(0.5, 0.999))
@@ -136,7 +139,7 @@ if __name__=="__main__":
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.5,), (0.5,)),
-        transforms.Lambda(lambda x: x.view(-1))
+        #transforms.Lambda(lambda x: x.view(-1)) # Don't flatten for conv networks TODO add flatten into non conv network setups?
     ])
     dataset = datasets.CIFAR10(root="./data", train=True, transform=transform, download=True)
     cifar_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
@@ -147,7 +150,7 @@ if __name__=="__main__":
     transform = transforms.Compose([
         transforms.ToTensor(),  
         transforms.Normalize((0.5,), (0.5,)),  
-        transforms.Lambda(lambda x: x.view(-1))  
+        transforms.Lambda(lambda x: x.view(-1))  # remove this flattening for conv
     ])
 
     dataset = datasets.MNIST(root="./data", train=True, transform=transform, download=True)
@@ -157,6 +160,9 @@ if __name__=="__main__":
     mnist_classifier_model.load_state_dict(torch.load("mnist_classifier/mnist_cnn.pt", map_location=device))
     mnist_classifier_model.eval()
 
-    train_gan(MLPGenerator, MLPDiscriminator, cifar10_classifier_model,
-              img_dim=(3, 32, 32), loader=cifar_loader, save_dir='./gan_generator/outputs/mlp_gan_cifar10_output', epochs=100)
+    train_gan(DCGAN_Generator(100).to(device),
+              DCGAN_Discriminator().to(device), 
+              cifar10_classifier_model, 
+              noise_dim=100,
+              loader=cifar_loader, save_dir='./gan_generator/outputs/conv_gan_cifar10_output', epochs=100)
 

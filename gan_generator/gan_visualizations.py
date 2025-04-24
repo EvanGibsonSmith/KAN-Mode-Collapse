@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import ast
 import os
 import torch
+import pandas as pd
 
 def plot_training_stats(df, save_folder):
     # Convert the 'Confidence' and 'Predicted Classes' columns from strings to lists
@@ -116,3 +117,8 @@ def generate_collage(classifier,
     plt.subplots_adjust(top=0.9)
     plt.savefig(os.path.join(save_folder, "generated_and_classified_collage.png"))  # Save the collage
     plt.show()
+
+if __name__=="__main__":
+    save_dir = "gan_generator/outputs/conv_gan_cifar10_output"
+    stats_df = pd.read_csv("gan_generator/outputs/conv_gan_cifar10_output/training_stats.csv")
+    plot_training_stats(stats_df, save_folder=save_dir)

@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from helper_classes import ForwardReshape
+from helper_classes import FlatImageForwardReshape
 from functools import reduce
 from operator import mul
 
 # --- MLP Generator ---
-class MLPGenerator(nn.Module, ForwardReshape):
+class MLPGenerator(nn.Module, FlatImageForwardReshape):
     def __init__(self, noise_dim, img_dim):
         super().__init__()
         self.noise_dim = noise_dim
@@ -24,7 +24,7 @@ class MLPGenerator(nn.Module, ForwardReshape):
         return self.net(z)
 
 # --- MLP Discriminator ---
-class MLPDiscriminator(nn.Module, ForwardReshape):
+class MLPDiscriminator(nn.Module, FlatImageForwardReshape):
     def __init__(self, img_dim):
         super().__init__()
         self.net = nn.Sequential(
