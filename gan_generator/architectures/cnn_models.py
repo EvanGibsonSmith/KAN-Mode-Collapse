@@ -2,9 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet18
-from helper_classes import IdentityForwardReshape
+from .helper_classes import IdentityForwardReshape, HParams
+from efficient_kan.kan import KANLinear  
 
-class ConvCIFAR10_Discriminator(nn.Module, IdentityForwardReshape):
+class ConvCIFAR10_Discriminator(nn.Module, IdentityForwardReshape, HParams):
     def __init__(self):
         super(ConvCIFAR10_Discriminator, self).__init__()
         # Load pretrained ResNet18
@@ -41,7 +42,7 @@ class SmallResNetGenerator(nn.Module, IdentityForwardReshape):
         x = torch.tanh(self.upsample3(x))
         return x
     
-class DCGAN_Generator(nn.Module, IdentityForwardReshape):
+class DCGAN_Generator(nn.Module, IdentityForwardReshape, HParams):
     def __init__(self, noise_dim=100, image_channels=3):
         super(DCGAN_Generator, self).__init__()
         self.model = nn.Sequential(
@@ -71,7 +72,7 @@ class DCGAN_Generator(nn.Module, IdentityForwardReshape):
         return self.model(x)
 
     
-class DCGAN_Discriminator(nn.Module, IdentityForwardReshape):
+class DCGAN_Discriminator(nn.Module, IdentityForwardReshape, HParams):
     def __init__(self, image_channels=3):
         super(DCGAN_Discriminator, self).__init__()
         self.model = nn.Sequential(
@@ -117,7 +118,7 @@ class ResidualBlockUp(nn.Module):
         x = self.bn2(F.relu(self.conv2(x)))
         return x + identity
 
-class ConvCIFAR10_Generator(nn.Module, IdentityForwardReshape):
+class ConvCIFAR10_Generator(nn.Module, IdentityForwardReshape, HParams):
     def __init__(self, noise_dim=100, img_channels=3):
         super(ConvCIFAR10_Generator, self).__init__()
         self.init_size = 4  # Output starts at 4x4
@@ -140,3 +141,83 @@ class ConvCIFAR10_Generator(nn.Module, IdentityForwardReshape):
         x = self.block2(x)
         x = self.block3(x)
         return self.to_img(x)
+    
+
+class Strong_ConvCIFAR10_Generator(nn.Module, IdentityForwardReshape, HParams):
+    def __init__(self, noise_dim=100, img_channels=3, KAN_fc_layer=False):
+        self.noise_dim = noise_dim
+        self.img_channels = img_channels
+
+        if KAN_fc_layer:
+            linear_layer = nn.Sequential(
+                KANLinear(noise_dim, 512 * 2 * 2),  # Replace with your actual KANLinear class
+                nn.ReLU(True)
+            )
+        else:
+            linear_layer = nn.Sequential(
+                nn.Linear(noise_dim, 512 * 2 * 2),
+                nn.ReLU(True)
+            )
+        
+        super().__init__()
+        self.gen = nn.Sequential(
+            # Input: (N, z_dim) → reshape to (N, 512, 2, 2)
+            *linear_layer,
+            nn.ReLU(True),
+            nn.Unflatten(1, (512, 2, 2)),
+
+            nn.ConvTranspose2d(512, 256, kernel_size=4, stride=2, padding=1),  # (4x4)
+            nn.BatchNorm2d(256),
+            nn.ReLU(True),
+
+            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),  # (8x8)
+            nn.BatchNorm2d(128),
+            nn.ReLU(True),
+
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),   # (16x16)
+            nn.BatchNorm2d(64),
+            nn.ReLU(True),
+
+            nn.ConvTranspose2d(64, img_channels, kernel_size=4, stride=2, padding=1),  # (32x32)
+            nn.Tanh()
+        )
+
+    def forward(self, x):
+        return self.gen(x)
+    
+class Strong_ConvCIFAR10_Discriminator(nn.Module, IdentityForwardReshape, HParams):
+    def __init__(self, img_channels=3, KAN_fc_layer=False):
+        super().__init__()
+        if KAN_fc_layer:
+            linear_layer = nn.Sequential(
+                KANLinear(512 * 2 * 2, 1)  # Replace with your actual KANLinear class
+            )
+        else:
+            linear_layer = nn.Sequential(
+                nn.Linear(512 * 2 * 2, 1)
+            )
+        
+        self.disc = nn.Sequential(
+            nn.Conv2d(img_channels, 64, kernel_size=4, stride=2, padding=1),  # (16x16)
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (8x8)
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),  # (4x4)
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1),  # (2x2)
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Flatten(),
+            *linear_layer,
+            nn.Sigmoid()  # or identity if using WGAN
+        )
+
+    def forward(self, x):
+        return self.disc(x)
+

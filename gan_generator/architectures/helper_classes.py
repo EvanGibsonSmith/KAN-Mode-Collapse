@@ -1,3 +1,4 @@
+import inspect
 
 # Class to inhereit to have forward_reshape for flattening models
 class FlatImageForwardReshape:
@@ -14,3 +15,13 @@ class FlatImageForwardReshape:
 class IdentityForwardReshape:
     def forward_reshape(self, z):
         return self.forward(z)
+
+# Has function to return passed inputs as hparam dict
+class HParams:
+    def hparams(self):
+        # Get the signature of the constructor (only parameters passed to __init__)
+        params = inspect.signature(self.__init__).parameters
+        
+        # Only include parameters that are passed to __init__
+        hparams = {k: v.default for k, v in params.items() if v.default != inspect.Parameter.empty}
+        return hparams

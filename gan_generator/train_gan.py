@@ -6,12 +6,18 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch.nn.functional as F
+import yaml
 
 # Models
 from test_gan_models import TestGenerator, TestDiscriminator
-from mlp_models import MLPGenerator, MLPDiscriminator
-from kat_models import GRKANDiscriminator, GRKANGenerator
-from cnn_models import ConvCIFAR10_Generator, ConvCIFAR10_Discriminator, DCGAN_Discriminator, DCGAN_Generator
+from architectures.mlp_models import MLPGenerator, MLPDiscriminator
+from architectures.kat_models import GRKANDiscriminator, GRKANGenerator
+from architectures.kan_models import KAN_Discriminator, KAN_Generator
+from architectures.cnn_models import ConvCIFAR10_Generator, ConvCIFAR10_Discriminator, DCGAN_Discriminator, DCGAN_Generator, Strong_ConvCIFAR10_Generator, Strong_ConvCIFAR10_Discriminator
+from architectures.cnn_kan_models import Strong_ConvCIFAR10_KAN_Generator, Strong_ConvCIFAR10_KAN_Discriminator
+from architectures.cnn_kan_models import Lightweight_ConvCIFAR10_KAN_Generator, LightWeight_ConvCIFAR10_KAN_Discriminator
+from architectures.cnn_kan_models import Tiny_ConvCIFAR10_KAN_Generator, Tiny_ConvCIFAR10_KAN_Discriminator
+from architectures.kan_mlp_hybrid_models import KAN_MLP_Discriminator, KAN_MLP_Generator
 from tqdm import tqdm
 import os
 from metrics import batch_metrics
@@ -44,9 +50,9 @@ def train_gan(Generator,
             loader,
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
             epochs = 50,
-            learning_rate = 2e-4,
+            g_lr = 2e-4,
+            d_lr = 2e-4,
             noise_dim = 100,
-            img_dim = 3 * 32 * 32,
             validation_size = 100,
             save_dir='./training_output',
             generate_graphs=True):
@@ -57,14 +63,41 @@ def train_gan(Generator,
     
     # Create save directory
     os.makedirs(save_dir, exist_ok=True)  
+    os.makedirs(f"{save_dir}/models")
+    os.makedirs(f"{save_dir}/models/generators")
+    os.makedirs(f"{save_dir}/models/discriminators")
 
-    # --- Model selection ---
+    # Easier model variable names
     gen = Generator
     disc = Discriminator
+    
+    # Save hyperparameters (with model parameters)
+    config = {
+        'Generator': {
+            'name': gen.__class__.__name__,
+            'params': gen.hparams(),
+        },
+        'Discriminator': {
+            'name': disc.__class__.__name__,
+            'params': disc.hparams(),
+        },
+        'classifier': Classifier.__class__.__name__ if Classifier else None,
+        'device': str(device),
+        'epochs': epochs,
+        'g_lr': g_lr,
+        'd_lr': d_lr,
+        'noise_dim': noise_dim,
+        'validation_size': validation_size,
+        'save_dir': save_dir,
+        'generate_graphs': generate_graphs,
+    }
+
+    with open(os.path.join(save_dir, "config.yaml"), "w") as f:
+        yaml.dump(config, f)
 
     criterion = nn.BCELoss()
-    opt_gen = optim.Adam(gen.parameters(), lr=learning_rate, betas=(0.5, 0.999))
-    opt_disc = optim.Adam(disc.parameters(), lr=learning_rate, betas=(0.5, 0.999))
+    opt_gen = optim.Adam(gen.parameters(), lr=g_lr, betas=(0.5, 0.999))
+    opt_disc = optim.Adam(disc.parameters(), lr=d_lr, betas=(0.5, 0.999))
 
     # Initialize pandas DataFrame to track stats
     columns = ['Epoch', 'G Loss', 'D Loss', 'Entropy', 'Confidence', 'Predicted Classes']
@@ -123,8 +156,9 @@ def train_gan(Generator,
             }
 
         # Save model checkpoints and stats at the end of each epoch
-        torch.save(gen.state_dict(), f"{save_dir}/generator_epoch_{epoch + 1}.pth")
-        torch.save(disc.state_dict(), f"{save_dir}/discriminator_epoch_{epoch + 1}.pth")
+        torch.save(gen.state_dict(), f"{save_dir}/models/generators/generator_epoch_{epoch + 1}.pth")
+        torch.save(disc.state_dict(), f"{save_dir}/models/discriminators/discriminator_epoch_{epoch + 1}.pth")
+
 
     # Save stats DataFrame to CSV
     stats_df.to_csv(f"{save_dir}/training_stats.csv", index=False)
@@ -160,9 +194,13 @@ if __name__=="__main__":
     mnist_classifier_model.load_state_dict(torch.load("mnist_classifier/mnist_cnn.pt", map_location=device))
     mnist_classifier_model.eval()
 
-    train_gan(DCGAN_Generator(100).to(device),
-              DCGAN_Discriminator().to(device), 
+    noise_dim = 100
+    img_dim = (3, 32, 32)
+    img_channels = 3
+    train_gan(Tiny_ConvCIFAR10_KAN_Generator(noise_dim, img_channels).to(device).train(),
+              Tiny_ConvCIFAR10_KAN_Discriminator(img_channels).to(device).train(), 
               cifar10_classifier_model, 
-              noise_dim=100,
-              loader=cifar_loader, save_dir='./gan_generator/outputs/conv_gan_cifar10_output', epochs=100)
+              noise_dim=noise_dim,
+              d_lr=2e-5, # Half of Generator
+              loader=cifar_loader, save_dir='./gan_generator/outputs/tiny_conv_kan_cifar_output', epochs=100)
 

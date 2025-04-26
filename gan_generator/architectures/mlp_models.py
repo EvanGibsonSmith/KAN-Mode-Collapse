@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from helper_classes import FlatImageForwardReshape
+from .helper_classes import FlatImageForwardReshape
 from functools import reduce
 from operator import mul
 
@@ -16,7 +16,7 @@ class MLPGenerator(nn.Module, FlatImageForwardReshape):
             nn.ReLU(),
             nn.Linear(256, 512),
             nn.ReLU(),
-            nn.Linear(512, reduce(mul, img_dim)), # Flattened output
+            nn.Linear(512, reduce(mul, img_dim)),
             nn.Tanh()
         )
 
