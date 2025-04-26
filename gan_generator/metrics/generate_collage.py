@@ -1,8 +1,14 @@
 import torch
 import matplotlib.pyplot as plt
 from torchvision.utils import make_grid
-from mlp_models import MLPGenerator
-from kat_models import GRKANGenerator
+from architectures.mlp_models import MLPGenerator
+from architectures.kat_models import GRKANGenerator
+from architectures.cnn_models import DCGAN_Generator, Strong_ConvCIFAR10_Generator
+from architectures.cnn_models import Strong_ConvMNIST_Generator
+from architectures.kan_models import KAN_Generator
+from architectures.kan_mlp_hybrid_models import KAN_MLP_Generator
+from architectures.cnn_kan_models import Tiny_ConvCIFAR10_KAN_Generator, Strong_ConvCIFAR10_KAN_Generator, Lightweight_ConvCIFAR10_KAN_Generator
+import yaml
 import os
 
 # Fixes annoying import issues
@@ -84,18 +90,23 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Get classifier model
-    classifier_model = mnist_model.MNIST_Classifier().to(device)
-    classifier_model.load_state_dict(torch.load("mnist_classifier/mnist_cnn.pt", map_location=device))
-    classifier_model.eval()
+    mnist_classifier_model = mnist_model.MNIST_Classifier().to(device)
+    mnist_classifier_model.load_state_dict(torch.load("mnist_classifier/mnist_cnn.pt", map_location=device))
+    mnist_classifier_model.eval()
 
     cifar10_classifier_model = torch.hub.load('chenyaofo/pytorch-cifar-models', 'cifar10_resnet32', pretrained=True).to(device)
     cifar10_classifier_model.eval()
 
     # Get generator model
-    noise_dim = 100
-    img_dim = (3, 32, 32)
-    generator_model = MLPGenerator(noise_dim, img_dim).to(device)
-    generator_model.load_state_dict(torch.load("gan_generator/outputs/mlp_gan_cifar10_output/models/generator/generator_epoch_5.pth", map_location=device))
+    folder_path = "./gan_generator/outputs/strong_conv_mlp_fc_cifar_output"
+    model_epoch = 100
+
+    # Load yaml for generator hyperparameters
+    with open(f"{folder_path}/config.yaml", "r") as file:
+        gen_config = yaml.load(file, Loader=yaml.FullLoader)["Generator"]["params"]
+
+    generator_model = Strong_ConvCIFAR10_Generator(**gen_config).to(device)
+    generator_model.load_state_dict(torch.load(f"{folder_path}/models/generators/generator_epoch_{model_epoch}.pth", map_location=device))
     generator_model.eval()
 
     cifar10_class_dict = [
@@ -111,6 +122,6 @@ if __name__ == "__main__":
                      generator_model, 
                      noise_dim=100,
                      class_dict=cifar10_class_dict,
-                     save_folder="gan_generator/outputs/conv_gan_cifar10_output",
-                     save_name="generated_and_classified_collage_epoch5_generator.png")
+                     save_folder=folder_path,
+                     save_name=f"generated_and_classified_collage_epoch_{model_epoch}.png")
     

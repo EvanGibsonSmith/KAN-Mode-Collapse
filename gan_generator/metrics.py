@@ -35,6 +35,7 @@ def batch_metrics(batch: torch.Tensor, classifier_model, device: str = ""):
         batch[i] = mnist_normalize(batch[i]) # TODO make more flexible for both
     
     with torch.no_grad():
+  
         logits = classifier_model(batch)
         probs = F.softmax(logits, dim=1)
 
