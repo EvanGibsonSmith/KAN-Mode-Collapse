@@ -14,15 +14,16 @@ from architectures.mlp_models import MLPGenerator, MLPDiscriminator
 from architectures.kat_models import GRKANDiscriminator, GRKANGenerator
 from architectures.kan_models import KAN_Discriminator, KAN_Generator
 from architectures.cnn_models import ConvCIFAR10_Generator, ConvCIFAR10_Discriminator, DCGAN_Discriminator, DCGAN_Generator
-from architectures.cnn_models import Strong_ConvCIFAR10_Generator, Strong_ConvCIFAR10_Discriminator, Strong_ConvMNIST_Generator, Strong_ConvMNIST_Generator
+from architectures.cnn_models import Strong_ConvCIFAR10_Generator, Strong_ConvCIFAR10_Discriminator, Strong_ConvMNIST_Generator, Strong_ConvMNIST_Discriminator
 from architectures.cnn_kan_models import Strong_ConvCIFAR10_KAN_Generator, Strong_ConvCIFAR10_KAN_Discriminator
 from architectures.cnn_kan_models import Lightweight_ConvCIFAR10_KAN_Generator, LightWeight_ConvCIFAR10_KAN_Discriminator
 from architectures.cnn_kan_models import Tiny_ConvCIFAR10_KAN_Generator, Tiny_ConvCIFAR10_KAN_Discriminator
 from architectures.kan_mlp_hybrid_models import KAN_MLP_Discriminator, KAN_MLP_Generator
 from tqdm import tqdm
 import os
-from metrics import batch_metrics
-from gan_generator.gan_visualizations import plot_training_stats, generate_collage
+
+from gan_generator.metrics.gan_visualizations import plot_training_stats, generate_collage
+from gan_generator.metrics.metrics import batch_metrics
 
 # Fixes annoying import issues
 import sys; sys.path.insert(0, "/root/projects/kan-mode-collapse")
@@ -196,12 +197,12 @@ if __name__=="__main__":
     mnist_classifier_model.eval()
 
     noise_dim = 100
-    img_dim = (3, 32, 32)
-    img_channels = 3
-    train_gan(Strong_ConvCIFAR10_Generator(noise_dim, img_channels, KAN_fc_layer=False).to(device).train(),
-              Strong_ConvCIFAR10_Discriminator(img_channels, KAN_fc_layer=False).to(device).train(), 
-              cifar10_classifier_model, 
+    img_dim = (1, 28, 28)
+    img_channels = 1
+    train_gan(Strong_ConvMNIST_Generator(noise_dim, img_channels, KAN_fc_layer=True).to(device).train(),
+              Strong_ConvMNIST_Discriminator(img_channels, KAN_fc_layer=True).to(device).train(), 
+              mnist_classifier_model, 
               noise_dim=noise_dim,
               d_lr=2e-5, # Half of Generator
-              loader=cifar_loader, save_dir='./gan_generator/outputs/strong_conv_mlp_fc_cifar_output', epochs=100)
+              loader=mnist_loader, save_dir='./gan_generator/outputs/strong_conv_kan_fc_mnist_output', epochs=100)
 

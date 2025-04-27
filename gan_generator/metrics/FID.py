@@ -1,7 +1,7 @@
 import torch
 from torchvision.models import inception_v3
-from torchvision.transforms import Compose, Resize, ToTensor, Normalize
-from torchvision.datasets import CIFAR10
+from torchvision.transforms import Compose, Resize, ToTensor, Normalize, Grayscale
+from torchvision.datasets import CIFAR10, MNIST
 from torch.utils.data import DataLoader, IterableDataset
 from torchmetrics.image.fid import FrechetInceptionDistance
 from tqdm import tqdm
@@ -31,11 +31,12 @@ def compute_fid(real_loader, generator, device="cuda"):
         fid.update(batch, real=True)
 
     # Fake images
-    num_images = len(real_dataset)
     batch_size = 64
-    for _ in tqdm(range(num_images // batch_size), desc="Fake"):
+    for _ in tqdm(range(len(real_loader)), desc="Fake"):
         z = torch.randn(batch_size, generator.noise_dim).cuda()
         fake_images = generator(z).detach().cpu()
+        if fake_images.shape[1] == 1:
+            fake_images = fake_images.repeat(1, 3, 1, 1)
 
         # Resize and normalize just like real images
         fake_images = torch.nn.functional.interpolate(fake_images, size=(299, 299), mode="bilinear")
@@ -49,8 +50,10 @@ def compute_fid(real_loader, generator, device="cuda"):
 def compute_fid_over_classes(
     real_loader,
     generator,  # expects a function like: def generator_fn(class_idx): yield batches of images
-    class_names=None,
-    class_to_idx=None,
+    class_to_idx = {
+            'airplane': 0, 'automobile': 1, 'bird': 2, 'cat': 3, 'deer': 4,
+            'dog': 5, 'frog': 6, 'horse': 7, 'ship': 8, 'truck': 9
+        },
     device="cuda"
 ):
     """
@@ -61,16 +64,9 @@ def compute_fid_over_classes(
 
     Returns: dict[class_name] = FID score
     """
-
-    if class_to_idx is None:
-        class_to_idx = {
-            'airplane': 0, 'automobile': 1, 'bird': 2, 'cat': 3, 'deer': 4,
-            'dog': 5, 'frog': 6, 'horse': 7, 'ship': 8, 'truck': 9
-        }
-
     results = {}
 
-    for class_name in class_names:
+    for class_name in class_to_idx.keys():
         class_idx = class_to_idx[class_name]
         fid = FrechetInceptionDistance(feature=2048).to(device)
 
@@ -83,14 +79,16 @@ def compute_fid_over_classes(
                 fid.update(batch, real=True)
 
         # Fake images for this class
-        num_images = len(real_dataset)
         batch_size = 64
-        for _ in tqdm(range(num_images // batch_size), desc="Fake"):
+        for _ in tqdm(range(len(real_loader)), desc="Fake"):
             z = torch.randn(batch_size, generator.noise_dim).cuda()
             fake_images = generator(z).detach().cpu()
 
             # Resize and normalize just like real images
             fake_images = torch.nn.functional.interpolate(fake_images, size=(299, 299), mode="bilinear")
+            if fake_images.shape[1] == 1:
+                fake_images = fake_images.repeat(1, 3, 1, 1)
+
             fake_images_uint8 = (fake_images.clamp(0, 1) * 255).to(torch.uint8)
             fid.update(fake_images_uint8.cuda(), real=False)
 
@@ -104,6 +102,7 @@ if __name__=="__main__":
     # Transform to fit Inception's input expectations (299x299, normalized)
     transform = Compose([
         Resize((299, 299)),
+        Grayscale(num_output_channels=3), # For MNIST
         ToTensor(),
         Normalize([0.5]*3, [0.5]*3)  # Scale [-1, 1] to roughly match GAN output
     ])
@@ -111,33 +110,42 @@ if __name__=="__main__":
     batch_size = 64
 
     # CIFAR10 real images
-    real_dataset = CIFAR10(root="./data", train=False, transform=transform, download=True)
-    real_loader = DataLoader(real_dataset, batch_size=batch_size, shuffle=False)
+    cifar_real_dataset = CIFAR10(root="./data", train=False, transform=transform, download=True)
+    cifar_real_loader = DataLoader(cifar_real_dataset, batch_size=batch_size, shuffle=False)
+
+    mnist_real_dataset = MNIST(root="./data", train=False, transform=transform, download=True)
+    mnist_real_loader = DataLoader(mnist_real_dataset, batch_size=batch_size, shuffle=False)
 
     # Get Generator
-    folder_path = "./gan_generator/outputs/strong_conv_mlp_fc_cifar_output"
+    folder_path = "./gan_generator/outputs/strong_conv_mlp_fc_mnist_output"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_epoch = 100
 
     with open(f"{folder_path}/config.yaml", "r") as file:
         gen_config = yaml.load(file, Loader=yaml.FullLoader)["Generator"]["params"]
 
-    generator = Strong_ConvCIFAR10_Generator(**gen_config).to(device)
+    generator = Strong_ConvMNIST_Generator(**gen_config).to(device)
     generator.load_state_dict(torch.load(f"{folder_path}/models/generators/generator_epoch_{model_epoch}.pth", map_location=device))
     generator.eval()
 
-    fid_score = compute_fid(real_loader, generator)
-    print("Overall FID Score: ", fid_score)
-
-    overall_fid = compute_fid(real_loader, generator, device)
+    overall_fid = compute_fid(mnist_real_loader, generator)
+    print("Overall FID Score: ", overall_fid)
 
     fid_scores = compute_fid_over_classes(
-        real_loader,
+        mnist_real_loader,
         generator,
-        class_names=[
-                    "airplane", "automobile", "bird", "cat", "deer",
-                    "dog", "frog", "horse", "ship", "truck"
-                    ]
+        class_to_idx={
+                    "0": 0,
+                    "1": 1, 
+                    "2": 2, 
+                    "3": 3, 
+                    "4": 4, 
+                    "5": 5, 
+                    "6": 6, 
+                    "7": 7,
+                    "8": 8, 
+                    "9": 9,
+                    },
     )
 
     for cls, fid in fid_scores.items():
