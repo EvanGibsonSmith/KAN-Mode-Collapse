@@ -10,11 +10,12 @@ import yaml
 
 # Models
 from test_gan_models import TestGenerator, TestDiscriminator
-from architectures.mlp_models import MLPGenerator, MLPDiscriminator
+from architectures.mlp_models import MLPGenerator, MLPDiscriminator, StrongMLPGenerator, StrongMLPDiscriminator
 from architectures.kat_models import GRKANDiscriminator, GRKANGenerator
-from architectures.kan_models import KAN_Discriminator, KAN_Generator
+from architectures.kan_models import KAN_Discriminator, KAN_Generator, StrongKANGenerator, StrongKANDiscriminator
 from architectures.cnn_models import ConvCIFAR10_Generator, ConvCIFAR10_Discriminator, DCGAN_Discriminator, DCGAN_Generator, Strong_ConvCIFAR10_Generator, Strong_ConvCIFAR10_Discriminator
 from architectures.cnn_kan_models import Strong_ConvCIFAR10_KAN_Generator, Strong_ConvCIFAR10_KAN_Discriminator
+from gan_generator.architectures.cnn_models import Strong_ConvMNIST_Generator, Strong_ConvMNIST_Discriminator
 from architectures.cnn_kan_models import Lightweight_ConvCIFAR10_KAN_Generator, LightWeight_ConvCIFAR10_KAN_Discriminator
 from architectures.cnn_kan_models import Tiny_ConvCIFAR10_KAN_Generator, Tiny_ConvCIFAR10_KAN_Discriminator
 from architectures.kan_mlp_hybrid_models import KAN_MLP_Discriminator, KAN_MLP_Generator
@@ -196,12 +197,12 @@ if __name__=="__main__":
     mnist_classifier_model.eval()
 
     noise_dim = 100
-    img_dim = (3, 32, 32)
-    img_channels = 3
-    train_gan(Tiny_ConvCIFAR10_KAN_Generator(noise_dim, img_channels).to(device).train(),
-              Tiny_ConvCIFAR10_KAN_Discriminator(img_channels).to(device).train(), 
-              cifar10_classifier_model, 
+    img_dim = (1, 28, 28)
+    img_channels = 1
+    train_gan(Strong_ConvMNIST_Generator(noise_dim, img_channels, KAN_fc_layer=True).to(device).train(),
+              Strong_ConvMNIST_Discriminator(img_channels, KAN_fc_layer=True).to(device).train(), 
+              mnist_classifier_model, 
               noise_dim=noise_dim,
-              d_lr=2e-5, # Half of Generator
-              loader=cifar_loader, save_dir='./gan_generator/outputs/tiny_conv_kan_cifar_output', epochs=100)
+              d_lr=2e-5, # 1/10 of Generator
+              loader=mnist_loader, save_dir='./gan_generator/outputs/strong_conv_kan_fc_mnist_output', epochs=100)
 
