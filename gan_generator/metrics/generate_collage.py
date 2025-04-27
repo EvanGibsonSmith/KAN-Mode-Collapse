@@ -14,6 +14,13 @@ from gan_generator.architectures.kan_models import KAN_Generator
 from gan_generator.architectures.kan_mlp_hybrid_models import KAN_MLP_Generator
 from gan_generator.architectures.cnn_kan_models import Tiny_ConvCIFAR10_KAN_Generator, Strong_ConvCIFAR10_KAN_Generator, Lightweight_ConvCIFAR10_KAN_Generator
 import yaml
+from architectures.mlp_models import MLPGenerator
+from architectures.kat_models import GRKANGenerator
+from architectures.cnn_models import DCGAN_Generator, Strong_ConvCIFAR10_Generator
+from architectures.kan_models import KAN_Generator
+from architectures.kan_mlp_hybrid_models import KAN_MLP_Generator
+from architectures.cnn_kan_models import Tiny_ConvCIFAR10_KAN_Generator, Strong_ConvCIFAR10_KAN_Generator, Lightweight_ConvCIFAR10_KAN_Generator
+import yaml
 import os
 
 # Fixes annoying import issues
@@ -112,6 +119,15 @@ if __name__ == "__main__":
 
     generator_model = Strong_ConvMNIST_Generator(**gen_config).to(device)
     generator_model.load_state_dict(torch.load(f"{folder_path}/models/generators/generator_epoch_{model_epoch}.pth", map_location=device))
+    folder_path = "gan_generator/outputs/tiny_conv_kan_cifar_output"
+    model_epoch = 2
+
+    # Load yaml for generator hyperparameters
+    with open(f"{folder_path}/config.yaml", "r") as file:
+        gen_config = yaml.load(file, Loader=yaml.FullLoader)["Generator"]["params"]
+
+    generator_model = Tiny_ConvCIFAR10_KAN_Generator(**gen_config).to(device)
+    generator_model.load_state_dict(torch.load(f"{folder_path}/models/generators/generator_epoch_{model_epoch}.pth", map_location=device))
     generator_model.eval()
 
     cifar10_class_dict = [
@@ -126,7 +142,7 @@ if __name__ == "__main__":
     generate_collage(mnist_classifier_model, 
                      generator_model, 
                      noise_dim=100,
-                     class_dict=mnist_class_dict,
+                     class_dict=cifar10_class_dict,
                      save_folder=folder_path,
                      save_name=f"generated_and_classified_collage_epoch_{model_epoch}.png")
     
