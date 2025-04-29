@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 from gan_generator.architectures.mlp_models import MLPGenerator, StrongMLPGenerator
 from gan_generator.architectures.kat_models import GRKANGenerator
 from gan_generator.architectures.cnn_models import DCGAN_Generator, Strong_ConvCIFAR10_Generator
-from gan_generator.architectures.cnn_models import Strong_ConvMNIST_Generator
+from gan_generator.architectures.cnn_models import Strong_ConvMNIST_Generator, Strong_ConvCIFAR10_Generator_GR_KAN_Activations, Strong_ConvMNIST_Generator_GR_KAN_Activations
 from gan_generator.architectures.kan_models import KAN_Generator
 from gan_generator.architectures.kan_mlp_hybrid_models import KAN_MLP_Generator
 from gan_generator.architectures.cnn_kan_models import Tiny_ConvCIFAR10_KAN_Generator, Strong_ConvCIFAR10_KAN_Generator, Lightweight_ConvCIFAR10_KAN_Generator
@@ -103,14 +103,14 @@ if __name__ == "__main__":
     cifar10_classifier_model.eval()
 
     # Get generator model
-    folder_path = "gan_generator/outputs/strong_conv_kan_fc_mnist_output_few_epoch"
-    model_epoch = 6
+    folder_path = "gan_generator/outputs/strong_conv_grkan_activations_mnist_output"
+    model_epoch = 100
 
     # Load yaml for generator hyperparameters
     with open(f"{folder_path}/config.yaml", "r") as file:
         gen_config = yaml.load(file, Loader=yaml.FullLoader)["Generator"]["params"]
 
-    generator_model = Strong_ConvMNIST_Generator(**gen_config).to(device)
+    generator_model = Strong_ConvMNIST_Generator_GR_KAN_Activations(**gen_config).to(device)
     generator_model.load_state_dict(torch.load(f"{folder_path}/models/generators/generator_epoch_{model_epoch}.pth", map_location=device))
     generator_model.eval()
 
@@ -128,5 +128,6 @@ if __name__ == "__main__":
                      noise_dim=100,
                      class_dict=mnist_class_dict,
                      save_folder=folder_path,
+                     device=device,
                      save_name=f"generated_and_classified_collage_epoch_{model_epoch}.png")
     

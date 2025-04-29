@@ -7,6 +7,7 @@ from torchvision.models import inception_v3
 from torchvision.models import Inception_V3_Weights
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
 import numpy as np
 from tqdm import tqdm
 
@@ -17,7 +18,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 
 from gan_generator.architectures.mlp_models import MLPGenerator, StrongMLPGenerator
 from gan_generator.architectures.kat_models import GRKANGenerator
-from gan_generator.architectures.cnn_models import DCGAN_Generator, Strong_ConvCIFAR10_Generator
+from gan_generator.architectures.cnn_models import DCGAN_Generator, Strong_ConvCIFAR10_Generator, Strong_ConvCIFAR10_Generator_GR_KAN_Activations
+from gan_generator.architectures.cnn_models import Strong_ConvMNIST_Generator_GR_KAN_Activations
 from gan_generator.architectures.cnn_models import Strong_ConvMNIST_Generator
 from gan_generator.architectures.kan_models import KAN_Generator
 from gan_generator.architectures.kan_mlp_hybrid_models import KAN_MLP_Generator
@@ -31,8 +33,8 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Parameters
 num_real = 5000      # number of real images
 num_fake = 5000      # number of generated images
-noise_dim = 256     # adjust to match your generator input
-img_shape = (3, 32, 32)
+noise_dim = 100     # adjust to match your generator input
+img_shape = (1, 28, 28)
 
 # Load CIFAR-10 real images
 transform = transforms.Compose([
@@ -53,8 +55,8 @@ real_images, real_labels = real_images.to(device), real_labels.to(device)
 z = torch.randn(num_fake, noise_dim, device=device)
 
 # Load generator model
-folder_path = "./gan_generator/outputs/strong_mlp_cifar_output_dlr_1e-5"
-if os.path.exists(os.path.join(folder_path, "feature_embeddings.png")):
+folder_path = "./gan_generator/outputs/strong_conv_grkan_activations_mnist_output"
+if os.path.exists(os.path.join(folder_path, "PCA_feature_embeddings.png")) or os.path.exists(os.path.join(folder_path, "t-SNE_feature_embeddings.png")):
     print("Path already exists.")
     exit(1)
 
@@ -64,7 +66,7 @@ model_epoch = 100
 with open(f"{folder_path}/config.yaml", "r") as file:
     gen_config = yaml.load(file, Loader=yaml.FullLoader)["Generator"]["params"]
 
-generator = StrongMLPGenerator(**gen_config).to(device)
+generator = Strong_ConvMNIST_Generator_GR_KAN_Activations(**gen_config).to(device)
 generator.load_state_dict(torch.load(f"{folder_path}/models/generators/generator_epoch_{model_epoch}.pth", map_location=device))
 generator.eval()
 
@@ -132,13 +134,15 @@ mnist_classifier_model = mnist_model.MNIST_Classifier().to(device)
 mnist_classifier_model.load_state_dict(torch.load("mnist_classifier/mnist_cnn.pt", map_location=device))
 mnist_classifier_model.eval()
 
-classifier_model = cifar10_classifier_model # Pick classifier model here based on dataset
+classifier_model = mnist_classifier_model # Pick classifier model here based on dataset
 with torch.no_grad():
     preds = classifier_model(fake_images)
 fake_labels = preds.argmax(dim=1)
 
 fake_labels = fake_labels.cpu().numpy()
 real_labels = real_labels.cpu().numpy()
+real_labels = real_labels.astype(int)
+fake_labels = fake_labels.astype(int)
 
 # Apply t-SNE
 tsne = TSNE(n_components=2, perplexity=30, random_state=42)
@@ -148,8 +152,9 @@ all_embeddings = tsne.fit_transform(all_features)
 real_embeddings = all_embeddings[:len(real_features)]
 fake_embeddings = all_embeddings[len(real_features):]
 
-# Plot
+# Plot t-SNE dimensionailty reduction
 print("Plotting t-SNE embeddings...")
+plt.figure(figsize=(8, 6))
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
 
 scatter1 = ax1.scatter(real_embeddings[:, 0], real_embeddings[:, 1], c=real_labels, cmap='tab10', alpha=0.6)
@@ -162,6 +167,43 @@ ax2.set_title('Generated Images (Predicted Labels)')
 legend2 = ax2.legend(*scatter2.legend_elements(), title="Classes", loc="best")
 ax2.add_artist(legend2)
 
+# Show t-SNE dimensionality reduction
+plt.title("t-SNE Projection")
+plt.show()
 plt.tight_layout()
-plt.savefig(os.path.join(folder_path, "feature_embeddings.png"))  # Save the collage
+plt.savefig(os.path.join(folder_path, "t-SNE_feature_embeddings.png"))  # Save the collage
+
+# Apply PCA
+print("Plotting PCA embeddings...")
+plt.figure(figsize=(8, 6))
+pca = PCA(n_components=2)
+all_features = np.concatenate([real_features, fake_features], axis=0)
+all_embeddings = pca.fit_transform(all_features)
+
+real_embeddings = all_embeddings[:len(real_features)]
+fake_embeddings = all_embeddings[len(real_features):]
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
+
+scatter1 = ax1.scatter(real_embeddings[:, 0], real_embeddings[:, 1], c=real_labels, cmap='tab10', alpha=0.6)
+ax1.set_title('Real CIFAR Images (True Labels)')
+legend1 = ax1.legend(*scatter1.legend_elements(), title="Classes", loc="best")
+ax1.add_artist(legend1)
+
+scatter2 = ax2.scatter(fake_embeddings[:, 0], fake_embeddings[:, 1], c=fake_labels, cmap='tab10', alpha=0.6)
+ax2.set_title('Generated Images (Predicted Labels)')
+legend2 = ax2.legend(*scatter2.legend_elements(), title="Classes", loc="best")
+ax2.add_artist(legend2)
+
+print(f"Explained variance by PCA: {pca.explained_variance_ratio_}")
+
+# Show PCA dimentionality reduction
+plt.title("PCA Projection")
+plt.xlabel("PCA 1")
+plt.ylabel("PCA 2")
+plt.show()
+plt.tight_layout()
+plt.savefig(os.path.join(folder_path, "PCA_feature_embeddings.png"))  # Save the collage
+
+
 plt.show()

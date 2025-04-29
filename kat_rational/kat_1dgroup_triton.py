@@ -79,9 +79,17 @@ class KAT_Group(nn.Module):
         Returns:
             Tensor: Processed tensor after applying rational function.
         """
-        assert input.dim() == 3 or input.dim() == 2, "Input tensor must be 3D (batch, length, channels) or 2D (batch, channels)."
-    
-    
+        assert input.dim() == 4 or input.dim() == 3 or input.dim() == 2, "Input tensor must be 3D (batch, length, channels) or 2D (batch, channels)."
+
+        # NOTE and TODO: This code for convolutional KAT_Group has not been tested
+        if input.dim() == 4:  # Conv output: [B, C, H, W]
+            B, C, H, W = input.shape
+            x = input.permute(0, 2, 3, 1).reshape(-1, C)  # [B*H*W, C]
+            weight_numerator = self.weight_numerator.repeat(self.num_groups, 1)
+            out = self.rational(x, weight_numerator, self.weight_denominator, self.num_groups)
+            out = out.view(B, H, W, C).permute(0, 3, 1, 2)
+            return out
+        
         # Repeat the weights for all groups
         weight_numerator = self.weight_numerator.repeat(self.num_groups, 1)
         return self.rational(input, weight_numerator, self.weight_denominator, self.num_groups)

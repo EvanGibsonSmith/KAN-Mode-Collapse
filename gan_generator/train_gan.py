@@ -15,7 +15,8 @@ from architectures.kat_models import GRKANDiscriminator, GRKANGenerator
 from architectures.kan_models import KAN_Discriminator, KAN_Generator, StrongKANGenerator, StrongKANDiscriminator
 from architectures.cnn_models import ConvCIFAR10_Generator, ConvCIFAR10_Discriminator, DCGAN_Discriminator, DCGAN_Generator, Strong_ConvCIFAR10_Generator, Strong_ConvCIFAR10_Discriminator
 from architectures.cnn_kan_models import Strong_ConvCIFAR10_KAN_Generator, Strong_ConvCIFAR10_KAN_Discriminator
-from gan_generator.architectures.cnn_models import Strong_ConvMNIST_Generator, Strong_ConvMNIST_Discriminator
+from architectures.cnn_models import Strong_ConvCIFAR10_Generator_GR_KAN_Activations, Strong_ConvCIFAR10_Discriminator_GR_KAN_Activations
+from architectures.cnn_models import Strong_ConvMNIST_Generator_GR_KAN_Activations, Strong_ConvMNIST_Discriminator_GR_KAN_Activations
 from architectures.cnn_kan_models import Lightweight_ConvCIFAR10_KAN_Generator, LightWeight_ConvCIFAR10_KAN_Discriminator
 from architectures.cnn_kan_models import Tiny_ConvCIFAR10_KAN_Generator, Tiny_ConvCIFAR10_KAN_Discriminator
 from architectures.kan_mlp_hybrid_models import KAN_MLP_Discriminator, KAN_MLP_Generator
@@ -195,14 +196,17 @@ if __name__=="__main__":
     mnist_classifier_model = mnist_model.MNIST_Classifier().to(device)
     mnist_classifier_model.load_state_dict(torch.load("mnist_classifier/mnist_cnn.pt", map_location=device))
     mnist_classifier_model.eval()
-
+    
+    # --- RUN MNIST ---
     noise_dim = 100
     img_dim = (1, 28, 28)
     img_channels = 1
-    train_gan(Strong_ConvMNIST_Generator(noise_dim, img_channels, KAN_fc_layer=True).to(device).train(),
-              Strong_ConvMNIST_Discriminator(img_channels, KAN_fc_layer=True).to(device).train(), 
-              mnist_classifier_model, 
-              noise_dim=noise_dim,
-              d_lr=2e-5, # 1/10 of Generator
-              loader=mnist_loader, save_dir='./gan_generator/outputs/strong_conv_kan_fc_mnist_output', epochs=100)
+    train_gan(Strong_ConvMNIST_Generator_GR_KAN_Activations(noise_dim, img_channels).to(device).train(),
+            Strong_ConvMNIST_Discriminator_GR_KAN_Activations(img_channels).to(device).train(), 
+            mnist_classifier_model, 
+            noise_dim=noise_dim,
+            d_lr=2e-5, # 1/10 of Generator
+            loader=mnist_loader, save_dir='./gan_generator/outputs/strong_conv_grkan_activations_mnist_output', epochs=100)
+
+
 

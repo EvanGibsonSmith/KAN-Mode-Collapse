@@ -119,6 +119,6 @@ def generate_collage(classifier,
     plt.show()
 
 if __name__=="__main__":
-    save_dir = "gan_generator/outputs/strong_conv_kan_fc_cifar_output"
+    save_dir = "gan_generator/outputs/strong_conv_grkan_activations_mnist_output"
     stats_df = pd.read_csv(f"{save_dir}/training_stats.csv")
     plot_training_stats(stats_df, save_folder=save_dir)
