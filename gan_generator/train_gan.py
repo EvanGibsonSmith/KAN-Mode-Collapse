@@ -57,8 +57,7 @@ def train_gan(Generator,
             d_lr = 2e-4,
             noise_dim = 100,
             validation_size = 100,
-            save_dir='./training_output',
-            generate_graphs=True):
+            save_dir='./training_output'):
 
     if os.path.exists(save_dir):
         print("Save Directory Already Exists.")
@@ -92,7 +91,6 @@ def train_gan(Generator,
         'noise_dim': noise_dim,
         'validation_size': validation_size,
         'save_dir': save_dir,
-        'generate_graphs': generate_graphs,
     }
 
     with open(os.path.join(save_dir, "config.yaml"), "w") as f:
@@ -165,9 +163,6 @@ def train_gan(Generator,
 
     # Save stats DataFrame to CSV
     stats_df.to_csv(f"{save_dir}/training_stats.csv", index=False)
-
-    if generate_graphs:
-        plot_training_stats(stats_df, save_folder=save_dir)
 
 if __name__=="__main__":
     batch_size = 64
