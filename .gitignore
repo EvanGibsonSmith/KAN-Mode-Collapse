@@ -2,8 +2,14 @@ __pycache__
 .venv
 
 */__pycache__
-*/.venv
 
 # Data folder generated from scripts
 /data
 /models/*
+*.pth
+
+# Outputs
+gan_generator/outputs/*
+
+# MNIST model trained for classification
+/mnist_classifier/mnist_cnn.pt
