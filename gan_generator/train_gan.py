@@ -91,7 +91,6 @@ def train_gan(Generator,
         'noise_dim': noise_dim,
         'validation_size': validation_size,
         'save_dir': save_dir,
-        'generate_graphs': generate_graphs,
     }
 
     with open(os.path.join(save_dir, "config.yaml"), "w") as f:
@@ -164,7 +163,6 @@ def train_gan(Generator,
 
     # Save stats DataFrame to CSV
     stats_df.to_csv(f"{save_dir}/training_stats.csv", index=False)
-
 
 if __name__=="__main__":
     batch_size = 64
