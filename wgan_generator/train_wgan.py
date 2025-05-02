@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import yaml
 
 # Models
-from test_gan_models import TestGenerator, TestDiscriminator
+from test_wgan_models import TestGenerator, TestDiscriminator
 from architectures.mlp_models import (
     MLPGenerator,
     MLPDiscriminator,
@@ -86,20 +86,10 @@ def entropy_of_confidence_histogram(pred_classes, confidences, num_classes=10):
     return entropy.item(), conf_dist
 
 
-def gradient_penalty(D, xr, xf):
-    """
-    :param D:
-    :param xr: [b, 2]
-    :param xf: [b, 2]
-    :return:
-    """
-    # [b, 1]
+def gradient_penalty(D, xr, xf, batch_size):
     t = torch.rand(batch_size, 1).cuda()
-    # [b, 1] => [b, 2]  broadcasting so t is the same for x1 and x2
     t = t.expand_as(xr)
-    # interpolation
     mid = t * xr + (1 - t) * xf
-    # set it to require grad info
     mid.requires_grad_()
     pred = D(mid)
     grads = autograd.grad(
@@ -199,9 +189,9 @@ def train_wgan(
             disc_fake = disc(fake.detach()).view(-1, 1)
             loss_fake = criterion(disc_fake, fake_labels)
 
-            gp = gradient_penalty(disc, real, fake)
+            gp = gradient_penalty(disc, real, fake, batch_size)
             # Gradient Penalty for WGAN
-            loss_disc = (loss_real + loss_fake) / 2 + 0.2 * gp
+            loss_disc = (loss_real + loss_fake) / 2 + 0.2 * gp # 0.2 is the lambda hyperparameter for GP
             disc.zero_grad()
             loss_disc.backward()
             opt_disc.step()
