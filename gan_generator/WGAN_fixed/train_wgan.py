@@ -14,7 +14,7 @@ import sys; sys.path.insert(0, "/root/projects/kan-mode-collapse")
 
 from gan_generator.architectures.mlp_models import MLPGenerator, MLPDiscriminator, StrongMLPGenerator, StrongMLPDiscriminator
 from gan_generator.architectures.kat_models import GRKANDiscriminator, GRKANGenerator
-from gan_generator.architectures import KAN_Discriminator, KAN_Generator, StrongKANGenerator, StrongKANDiscriminator
+from gan_generator.architectures.kan_models import KAN_Discriminator, KAN_Generator, StrongKANGenerator, StrongKANDiscriminator
 from gan_generator.architectures.cnn_models import ConvCIFAR10_Generator, ConvCIFAR10_Discriminator, DCGAN_Discriminator, DCGAN_Generator, Strong_ConvCIFAR10_Generator, Strong_ConvCIFAR10_Discriminator
 from gan_generator.architectures.cnn_kan_models import Strong_ConvCIFAR10_KAN_Generator, Strong_ConvCIFAR10_KAN_Discriminator
 from gan_generator.architectures.cnn_models import Strong_ConvCIFAR10_Generator_GR_KAN_Activations, Strong_ConvCIFAR10_Discriminator_GR_KAN_Activations
@@ -264,8 +264,8 @@ if __name__=="__main__":
             Strong_ConvCIFAR10_Discriminator(img_channels, wgan=True).to(device).train(), 
             cifar10_classifier_model, 
             noise_dim=noise_dim,
-            d_lr=5e-5,
+            d_lr=1e-4,
             g_lr=1e-4,
             lambda_hp=lambda_hp,
-            loader=cifar_loader, save_dir='./gan_generator/outputs/WGAN Fixed/strong_conv_mlp_activations_cifar10_output', epochs=100)
+            loader=cifar_loader, save_dir='./gan_generator/outputs/WGAN Fixed/strong_conv_high_lr_mlp_activations_cifar10_output', epochs=100)
     
