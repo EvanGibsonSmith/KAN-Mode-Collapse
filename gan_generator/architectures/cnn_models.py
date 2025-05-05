@@ -194,7 +194,7 @@ class Strong_ConvCIFAR10_Generator(nn.Module, IdentityForwardReshape, HParams):
         return self.gen(x)
     
 class Strong_ConvCIFAR10_Discriminator(nn.Module, IdentityForwardReshape, HParams):
-    def __init__(self, img_channels=3, GR_KAN_fc_layer=False, KAN_fc_layer=False):
+    def __init__(self, img_channels=3, GR_KAN_fc_layer=False, KAN_fc_layer=False, wgan=False):
         if GR_KAN_fc_layer and KAN_fc_layer:
             raise ValueError("Both GR_KAN_fc_layer and KAN_fc_layer cannot be True at the same time.")
         
@@ -213,26 +213,47 @@ class Strong_ConvCIFAR10_Discriminator(nn.Module, IdentityForwardReshape, HParam
                 nn.Linear(512 * 2 * 2, 1)
             )
         
-        self.disc = nn.Sequential(
-            nn.Conv2d(img_channels, 64, kernel_size=4, stride=2, padding=1),  # (16x16)
-            nn.LeakyReLU(0.2),
+        if not wgan:
+            self.disc = nn.Sequential(
+                nn.Conv2d(img_channels, 64, kernel_size=4, stride=2, padding=1),  # (16x16)
+                nn.LeakyReLU(0.2),
 
-            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (8x8)
-            nn.BatchNorm2d(128),
-            nn.LeakyReLU(0.2),
+                nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (8x8)
+                nn.BatchNorm2d(128),
+                nn.LeakyReLU(0.2),
 
-            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),  # (4x4)
-            nn.BatchNorm2d(256),
-            nn.LeakyReLU(0.2),
+                nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),  # (4x4)
+                nn.BatchNorm2d(256),
+                nn.LeakyReLU(0.2),
 
-            nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1),  # (2x2)
-            nn.BatchNorm2d(512),
-            nn.LeakyReLU(0.2),
+                nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1),  # (2x2)
+                nn.BatchNorm2d(512),
+                nn.LeakyReLU(0.2),
 
-            nn.Flatten(),
-            *linear_layer,
-            nn.Sigmoid()  # or identity if using WGAN
-        )
+                nn.Flatten(),
+                *linear_layer,
+                nn.Sigmoid()  # or identity if using WGAN
+            )
+        else: # Identity final activation for WGAN
+            self.disc = nn.Sequential(
+                nn.Conv2d(img_channels, 64, kernel_size=4, stride=2, padding=1),  # (16x16)
+                nn.LeakyReLU(0.2),
+
+                nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (8x8)
+                nn.BatchNorm2d(128),
+                nn.LeakyReLU(0.2),
+
+                nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),  # (4x4)
+                nn.BatchNorm2d(256),
+                nn.LeakyReLU(0.2),
+
+                nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1),  # (2x2)
+                nn.BatchNorm2d(512),
+                nn.LeakyReLU(0.2),
+
+                nn.Flatten(),
+                *linear_layer,
+            )
 
     def forward(self, x):
         return self.disc(x)
@@ -272,30 +293,52 @@ class Strong_ConvCIFAR10_Generator_GR_KAN_Activations(nn.Module, IdentityForward
         return self.gen(x)
     
 class Strong_ConvCIFAR10_Discriminator_GR_KAN_Activations(nn.Module, IdentityForwardReshape, HParams):
-    def __init__(self, img_channels=3):
+    def __init__(self, img_channels=3, wgan=False):
         
         super().__init__()
+            
+        if not wgan:
+            self.disc = nn.Sequential(
+                nn.Conv2d(img_channels, 64, kernel_size=4, stride=2, padding=1),  # (16x16)
+                KAT_Group(mode="gelu"),
+
+                nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (8x8)
+                nn.BatchNorm2d(128),
+                KAT_Group(mode="gelu"),
+
+                nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),  # (4x4)
+                nn.BatchNorm2d(256),
+                KAT_Group(mode="gelu"),
+
+                nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1),  # (2x2)
+                nn.BatchNorm2d(512),
+                KAT_Group(mode="gelu"),
+
+                nn.Flatten(),
+                nn.Linear(512 * 2 * 2, 1),
+                nn.Sigmoid()  # or identity if using WGAN
+            )
         
-        self.disc = nn.Sequential(
-            nn.Conv2d(img_channels, 64, kernel_size=4, stride=2, padding=1),  # (16x16)
-            KAT_Group(mode="gelu"),
+        else: # Identity final activation for WGAN      
+            self.disc = nn.Sequential(
+                nn.Conv2d(img_channels, 64, kernel_size=4, stride=2, padding=1),  # (16x16)
+                KAT_Group(mode="gelu"),
 
-            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (8x8)
-            nn.BatchNorm2d(128),
-            KAT_Group(mode="gelu"),
+                nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (8x8)
+                nn.BatchNorm2d(128),
+                KAT_Group(mode="gelu"),
 
-            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),  # (4x4)
-            nn.BatchNorm2d(256),
-            KAT_Group(mode="gelu"),
+                nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),  # (4x4)
+                nn.BatchNorm2d(256),
+                KAT_Group(mode="gelu"),
 
-            nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1),  # (2x2)
-            nn.BatchNorm2d(512),
-            KAT_Group(mode="gelu"),
+                nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1),  # (2x2)
+                nn.BatchNorm2d(512),
+                KAT_Group(mode="gelu"),
 
-            nn.Flatten(),
-            nn.Linear(512 * 2 * 2, 1),
-            nn.Sigmoid()  # or identity if using WGAN
-        )
+                nn.Flatten(),
+                nn.Linear(512 * 2 * 2, 1),
+            )
 
     def forward(self, x):
         return self.disc(x)
@@ -345,7 +388,7 @@ class Strong_ConvMNIST_Generator(nn.Module, IdentityForwardReshape, HParams):
         return self.gen(x)
 
 class Strong_ConvMNIST_Discriminator(nn.Module, IdentityForwardReshape, HParams):
-    def __init__(self, img_channels=1, GR_KAN_fc_layer=False, KAN_fc_layer=False):
+    def __init__(self, img_channels=1, GR_KAN_fc_layer=False, KAN_fc_layer=False, wgan=False):
         super().__init__()
 
         if KAN_fc_layer:
@@ -362,26 +405,48 @@ class Strong_ConvMNIST_Discriminator(nn.Module, IdentityForwardReshape, HParams)
                 nn.Linear(512 * 7 * 7, 1)
             )
 
-        self.disc = nn.Sequential(
-            nn.Conv2d(img_channels, 64, kernel_size=4, stride=2, padding=1),  # (14x14)
-            nn.LeakyReLU(0.2),
+        if not wgan:
+            self.disc = nn.Sequential(
+                nn.Conv2d(img_channels, 64, kernel_size=4, stride=2, padding=1),  # (14x14)
+                nn.LeakyReLU(0.2),
 
-            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (7x7)
-            nn.BatchNorm2d(128),
-            nn.LeakyReLU(0.2),
+                nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (7x7)
+                nn.BatchNorm2d(128),
+                nn.LeakyReLU(0.2),
 
-            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),  # (7x7)
-            nn.BatchNorm2d(256),
-            nn.LeakyReLU(0.2),
+                nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),  # (7x7)
+                nn.BatchNorm2d(256),
+                nn.LeakyReLU(0.2),
 
-            nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1),  # (7x7)
-            nn.BatchNorm2d(512),
-            nn.LeakyReLU(0.2),
+                nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1),  # (7x7)
+                nn.BatchNorm2d(512),
+                nn.LeakyReLU(0.2),
 
-            nn.Flatten(),
-            *linear_layer,
-            nn.Sigmoid()  # or identity if using WGAN
-        )
+                nn.Flatten(),
+                *linear_layer,
+                nn.Sigmoid()  # or identity if using WGAN
+            )
+        else:
+            self.disc = nn.Sequential(
+                nn.Conv2d(img_channels, 64, kernel_size=4, stride=2, padding=1),  # (14x14)
+                nn.LeakyReLU(0.2),
+
+                nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (7x7)
+                nn.BatchNorm2d(128),
+                nn.LeakyReLU(0.2),
+
+                nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),  # (7x7)
+                nn.BatchNorm2d(256),
+                nn.LeakyReLU(0.2),
+
+                nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1),  # (7x7)
+                nn.BatchNorm2d(512),
+                nn.LeakyReLU(0.2),
+
+                nn.Flatten(),
+                *linear_layer,
+            )
+
 
     def forward(self, x):
         return self.disc(x)
@@ -416,29 +481,50 @@ class Strong_ConvMNIST_Generator_GR_KAN_Activations(nn.Module, IdentityForwardRe
     
 
 class Strong_ConvMNIST_Discriminator_GR_KAN_Activations(nn.Module, IdentityForwardReshape, HParams):
-    def __init__(self, img_channels=1):
+    def __init__(self, img_channels=1, wgan=False):
         super().__init__()
 
-        self.disc = nn.Sequential(
-            nn.Conv2d(img_channels, 64, kernel_size=4, stride=2, padding=1),  # (14x14)
-            KAT_Group(mode="gelu"),
+        if not wgan:
+            self.disc = nn.Sequential(
+                nn.Conv2d(img_channels, 64, kernel_size=4, stride=2, padding=1),  # (14x14)
+                KAT_Group(mode="gelu"),
 
-            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (7x7)
-            nn.BatchNorm2d(128),
-            KAT_Group(mode="gelu"),
+                nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (7x7)
+                nn.BatchNorm2d(128),
+                KAT_Group(mode="gelu"),
 
-            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),  # (7x7)
-            nn.BatchNorm2d(256),
-            KAT_Group(mode="gelu"),
+                nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),  # (7x7)
+                nn.BatchNorm2d(256),
+                KAT_Group(mode="gelu"),
 
-            nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1),  # (7x7)
-            nn.BatchNorm2d(512),
-            KAT_Group(mode="gelu"),
+                nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1),  # (7x7)
+                nn.BatchNorm2d(512),
+                KAT_Group(mode="gelu"),
 
-            nn.Flatten(),
-            nn.Linear(512 * 7 * 7, 1),
-            nn.Sigmoid()  # or identity if using WGAN
-        )
+                nn.Flatten(),
+                nn.Linear(512 * 7 * 7, 1),
+                nn.Sigmoid()  # or identity if using WGAN
+            )
+        else:
+            self.disc = nn.Sequential(
+                nn.Conv2d(img_channels, 64, kernel_size=4, stride=2, padding=1),  # (14x14)
+                KAT_Group(mode="gelu"),
+
+                nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (7x7)
+                nn.BatchNorm2d(128),
+                KAT_Group(mode="gelu"),
+
+                nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),  # (7x7)
+                nn.BatchNorm2d(256),
+                KAT_Group(mode="gelu"),
+
+                nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1),  # (7x7)
+                nn.BatchNorm2d(512),
+                KAT_Group(mode="gelu"),
+
+                nn.Flatten(),
+                nn.Linear(512 * 7 * 7, 1),
+            )
 
     def forward(self, x):
         return self.disc(x)
